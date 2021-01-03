@@ -1,0 +1,7 @@
+/downstream
+/specfiles
+goproxy-*/
+.pk-maint/
+*.log
+*.rpm
+*.gz

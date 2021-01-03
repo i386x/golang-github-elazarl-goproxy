@@ -1,0 +1,92 @@
+diff --git a/proxy.go b/proxy.go
+index 28a76bf..7ff37e9 100644
+--- a/proxy.go
++++ b/proxy.go
+@@ -2,6 +2,7 @@ package goproxy
+ 
+ import (
+ 	"bufio"
++	//"fmt"
+ 	"io"
+ 	"log"
+ 	"net"
+@@ -74,6 +75,7 @@ func (proxy *ProxyHttpServer) filterResponse(respOrig *http.Response, ctx *Proxy
+ func removeProxyHeaders(ctx *ProxyCtx, r *http.Request) {
+ 	r.RequestURI = "" // this must be reset when serving a request with the client
+ 	ctx.Logf("Sending request %v %v", r.Method, r.URL.String())
++	//fmt.Printf("Sending request %v (%p)\n", r.Header, &r)
+ 	// If no Accept-Encoding header exists, Transport will add the headers it can accept
+ 	// and would wrap the response body with the relevant reader.
+ 	r.Header.Del("Accept-Encoding")
+@@ -87,11 +89,13 @@ func removeProxyHeaders(ctx *ProxyCtx, r *http.Request) {
+ 	//   options that are desired for that particular connection and MUST NOT
+ 	//   be communicated by proxies over further connections.
+ 	r.Header.Del("Connection")
++	//fmt.Printf("Sending modified request %v\n", r.Header)
+ }
+ 
+ // Standard net/http function. Shouldn't be used directly, http.Serve will use it.
+ func (proxy *ProxyHttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+ 	//r.Header["X-Forwarded-For"] = w.RemoteAddr()
++	//fmt.Printf("ProxyHttpServer::ServeHTTP: %p\n", &r)
+ 	if r.Method == "CONNECT" {
+ 		proxy.handleHttps(w, r)
+ 	} else {
+diff --git a/proxy_test.go b/proxy_test.go
+index 00445e8..ca17669 100644
+--- a/proxy_test.go
++++ b/proxy_test.go
+@@ -5,6 +5,7 @@ import (
+ 	"bytes"
+ 	"crypto/tls"
+ 	"encoding/base64"
++	"fmt"
+ 	"image"
+ 	"io"
+ 	"io/ioutil"
+@@ -515,20 +516,25 @@ type VerifyNoProxyHeaders struct {
+ }
+ 
+ func (v VerifyNoProxyHeaders) ServeHTTP(w http.ResponseWriter, r *http.Request) {
++	//fmt.Printf("ServeHTTP: %p\n", &r)
+ 	if r.Header.Get("Connection") != "" || r.Header.Get("Proxy-Connection") != "" {
++		fmt.Printf("Got Connection header from goproxy %v\n", r.Header)
+ 		v.Error("Got Connection header from goproxy", r.Header)
+ 	}
+ }
+ 
+ func TestNoProxyHeaders(t *testing.T) {
+ 	s := httptest.NewServer(VerifyNoProxyHeaders{t})
++	//fmt.Printf("TestNoProxyHeaders::s.URL = %v\n", s.URL)
+ 	client, _, l := oneShotProxy(t)
+ 	defer l.Close()
+ 	req, err := http.NewRequest("GET", s.URL, nil)
+ 	panicOnErr(err, "bad request")
+ 	req.Header.Add("Connection", "close")
+ 	req.Header.Add("Proxy-Connection", "close")
++	fmt.Printf("TestNoProxyHeaders::A (%p)\n", &req)
+ 	client.Do(req)
++	fmt.Printf("TestNoProxyHeaders::B\n")
+ }
+ 
+ func TestNoProxyHeadersHttps(t *testing.T) {
+@@ -538,8 +544,8 @@ func TestNoProxyHeadersHttps(t *testing.T) {
+ 	defer l.Close()
+ 	req, err := http.NewRequest("GET", s.URL, nil)
+ 	panicOnErr(err, "bad request")
+-	req.Header.Add("Connection", "close")
+-	req.Header.Add("Proxy-Connection", "close")
++	req.Header.Add("Connection", "Xclose")
++	req.Header.Add("Proxy-Connection", "Yclose")
+ 	client.Do(req)
+ }
+ 
+@@ -677,7 +683,7 @@ func readResponse(buf *bufio.Reader) string {
+ }
+ 
+ func writeConnect(w io.Writer) {
+-	req, err := http.NewRequest("CONNECT", srv.URL[len("http://"):], nil)
++	req, err := http.NewRequest("CONNECT", srv.URL, nil)
+ 	panicOnErr(err, "NewRequest")
+ 	req.Write(w)
+ 	panicOnErr(err, "req(CONNECT).Write")

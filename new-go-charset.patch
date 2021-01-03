@@ -1,0 +1,24 @@
+From d80416fe35b21fd7849cacbd9d98618e9e678d5c Mon Sep 17 00:00:00 2001
+From: Jiri Kucera <jkucera@redhat.com>
+Date: Wed, 21 Feb 2018 12:31:12 +0100
+Subject: [PATCH] New go-charset import path
+
+---
+ ext/html/html.go | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/ext/html/html.go b/ext/html/html.go
+index 724efce..6d6ef08 100644
+--- a/ext/html/html.go
++++ b/ext/html/html.go
+@@ -3,8 +3,8 @@ package goproxy_html
+ 
+ import (
+ 	"bytes"
+-	"code.google.com/p/go-charset/charset"
+-	_ "code.google.com/p/go-charset/data"
++	"github.com/paulrosania/go-charset/charset"
++	_ "github.com/paulrosania/go-charset/data"
+ 	"errors"
+ 	"github.com/elazarl/goproxy"
+ 	"io"

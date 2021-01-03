@@ -36,15 +36,19 @@
 %global provider_prefix %{provider}.%{provider_tld}/%{project}/%{repo}
 %global import_path     %{provider_prefix}
 %global commit          0a5b8bdb09049ae4ae68e75437ded0b7a2e324e3
+%global commitdate      20140910
 %global shortcommit     %(c=%{commit}; echo ${c:0:7})
 
 Name:           golang-%{provider}-%{project}-%{repo}
 Version:        0
-Release:        0.1.git%{shortcommit}%{?dist}
+Release:        0.1.%{commitdate}git%{shortcommit}%{?dist}
 Summary:        An HTTP proxy library for Go
 License:        BSD
 URL:            https://%{provider_prefix}
 Source0:        https://%{provider_prefix}/archive/%{commit}/%{repo}-%{shortcommit}.tar.gz
+Patch0:         new-go-charset.patch
+Patch1:         new-cert.patch
+Patch2:         tests.patch
 
 # e.g. el6 has ppc64 arch without gcc-go, so EA tag is required
 ExclusiveArch:  %{?go_arches:%{go_arches}}%{!?go_arches:%{ix86} x86_64 aarch64 %{arm}}
@@ -62,7 +66,16 @@ BuildArch:     noarch
 %if 0%{?with_check}
 %endif
 
+BuildRequires: golang(github.com/paulrosania/go-charset/charset)
+BuildRequires: golang(github.com/paulrosania/go-charset/data)
+Requires:      golang(github.com/paulrosania/go-charset/charset)
+Requires:      golang(github.com/paulrosania/go-charset/data)
 Provides:      golang(%{import_path}) = %{version}-%{release}
+Provides:      golang(%{import_path}/ext/auth) = %{version}-%{release}
+Provides:      golang(%{import_path}/ext/html) = %{version}-%{release}
+Provides:      golang(%{import_path}/ext/image) = %{version}-%{release}
+Provides:      golang(%{import_path}/regretable) = %{version}-%{release}
+Provides:      golang(%{import_path}/transport) = %{version}-%{release}
 
 %description devel
 %{summary}
@@ -93,6 +106,9 @@ providing packages with %{import_path} prefix.
 
 %prep
 %setup -q -n %{repo}-%{commit}
+%patch0 -p1
+%patch1 -p1
+%patch2 -p1
 
 %build
 
@@ -102,18 +118,21 @@ providing packages with %{import_path} prefix.
 install -d -p %{buildroot}/%{gopath}/src/%{import_path}/
 echo "%%dir %%{gopath}/src/%%{import_path}/." >> devel.file-list
 # find all *.go but no *_test.go files and generate devel.file-list
-for file in $(find . -iname "*.go" \! -iname "*_test.go") ; do
-    if [[ $(cat $file | grep -E "^[ \t]*package[ \t]+%{repo}[ \t]*") ]]; then
-        dirprefix=$(dirname $file)
-        install -d -p %{buildroot}/%{gopath}/src/%{import_path}/$dirprefix
-        cp -pav $file %{buildroot}/%{gopath}/src/%{import_path}/$file
-        echo "%%{gopath}/src/%%{import_path}/$file" >> devel.file-list
+# skip ./examples and ./test_data
+for file in $(find . -iname "*.go" \! \( \
+    -path "./examples" -o -path "./examples/*" \
+    -o -path "./test_data" -o -path "./test_data/*" \
+    -o -iname "*_test.go" \
+\) ) ; do
+    dirprefix=$(dirname $file)
+    install -d -p %{buildroot}/%{gopath}/src/%{import_path}/$dirprefix
+    cp -pav $file %{buildroot}/%{gopath}/src/%{import_path}/$file
+    echo "%%{gopath}/src/%%{import_path}/$file" >> devel.file-list
 
-        while [ "$dirprefix" != "." ]; do
-            echo "%%dir %%{gopath}/src/%%{import_path}/$dirprefix" >> devel.file-list
-            dirprefix=$(dirname $dirprefix)
-        done
-    fi
+    while [ "$dirprefix" != "." ]; do
+        echo "%%dir %%{gopath}/src/%%{import_path}/$dirprefix" >> devel.file-list
+        dirprefix=$(dirname $dirprefix)
+    done
 done
 %endif
 
@@ -121,18 +140,22 @@ done
 %if 0%{?with_unit_test} && 0%{?with_devel}
 install -d -p %{buildroot}/%{gopath}/src/%{import_path}/
 # find all *_test.go files and generate unit-test-devel.file-list
-for file in $(find . -iname "*_test.go") ; do
-    if [[ $(cat $file | grep -E "^[ \t]*package[ \t]+%{repo}[ \t]*") ]]; then
-        dirprefix=$(dirname $file)
-        install -d -p %{buildroot}/%{gopath}/src/%{import_path}/$dirprefix
-        cp -pav $file %{buildroot}/%{gopath}/src/%{import_path}/$file
-        echo "%%{gopath}/src/%%{import_path}/$file" >> unit-test-devel.file-list
+# skip ./examples
+# include cp* files and ./test_data
+for file in $(find . \( \
+    -iname "*_test.go" -o -path "./ext/html/cp*" -o -path "./test_data/*" \
+\) \! \( \
+    -path "./examples" -o -path "./examples/*" \
+\) ) ; do
+    dirprefix=$(dirname $file)
+    install -d -p %{buildroot}/%{gopath}/src/%{import_path}/$dirprefix
+    cp -pav $file %{buildroot}/%{gopath}/src/%{import_path}/$file
+    echo "%%{gopath}/src/%%{import_path}/$file" >> unit-test-devel.file-list
 
-        while [ "$dirprefix" != "." ]; do
-            echo "%%dir %%{gopath}/src/%%{import_path}/$dirprefix" >> devel.file-list
-            dirprefix=$(dirname $dirprefix)
-        done
-    fi
+    while [ "$dirprefix" != "." ]; do
+        echo "%%dir %%{gopath}/src/%%{import_path}/$dirprefix" >> devel.file-list
+        dirprefix=$(dirname $dirprefix)
+    done
 done
 %endif
 
@@ -155,6 +178,9 @@ export GOPATH=%{buildroot}/%{gopath}:%{gopath}
 %endif
 
 %gotest %{import_path}
+%gotest %{import_path}/ext/auth
+%gotest %{import_path}/ext/html
+%gotest %{import_path}/regretable
 %endif
 
 #define license tag if not already defined
@@ -174,6 +200,9 @@ export GOPATH=%{buildroot}/%{gopath}:%{gopath}
 %endif
 
 %changelog
-* Mon Feb 12 2018 Jiri Kucera <jkucera@redhat.com> - 0-0.1.git0a5b8bd
+* Wed Feb 21 2018 Jiri Kucera <jkucera@redhat.com> - 0-0.1.20140910git0a5b8bd
 - First package for Fedora
   resolves #1540726
+  patch new-go-charset.patch adjusts import path of go-charset
+  patch new-cert.patch updates certificates since certificates from upstream
+  does not work on Fedora

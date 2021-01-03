@@ -1,0 +1,31 @@
+#
+#! \file    ./Maintfile
+#! \author  Jiří Kučera, <jkucera AT redhat.com>
+#! \stamp   2018-03-08 14:01:05 (UTC+01:00, DST+00:00)
+#! \project github.com/elazarl/goproxy package maintenance
+#! \license BSD
+#! \version 1.0
+#! \fdesc   Project maintenance script.
+#
+
+# Project variables:
+setvar PROJECT 'github.com/elazarl/goproxy package maintenance'
+setvar AUTHOR_NAME 'Jiří Kučera'
+setvar AUTHOR_EMAIL 'jkucera AT redhat.com'
+setvar LICENSE 'BSD'
+setvar VERSION '1.0'
+
+setvar PKG_NAME 'golang-github-elazarl-goproxy'
+
+setvar GOPROXYSRC "${ProjectVars[GOWORKSPACE]}/src/github.com/elazarl/goproxy"
+setvar TESTS_PATCH 'tests.patch'
+
+# Project maintaining tasks:
+tg_patch_tests() {
+  local T
+
+  T=$(cd "${ProjectVars[GOPROXYSRC]}" && git diff)
+  if [ "$T" ]; then
+    echo "$T" > "${PKM_PRJROOT}/${ProjectVars[TESTS_PATCH]}"
+  fi
+}
